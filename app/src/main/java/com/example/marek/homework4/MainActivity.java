@@ -15,16 +15,32 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class MainActivity extends AppCompatActivity {
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback{
 
     public static final String API_KEY = "AIzaSyB-O_nlgZHWoMlyIyvhOA86nj0j-UgI-Xo";
-    public static TextView display;
+
     public static EditText input;
+    public GoogleMap map;
+
+    private double lat;
+    private double lng;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
 
         Button locationButton = (Button) findViewById(R.id.locationButton);
         locationButton.setOnClickListener(new View.OnClickListener() {
@@ -35,12 +51,31 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private class GetLocation extends AsyncTask<Void, Void, String>{
-        protected String doInBackground(Void... urls){
+    public void onMapReady(GoogleMap googleMap) {
+        map = googleMap;
+        LatLng location = new LatLng(lat, lng);
+        map.addMarker(new MarkerOptions().position(location).title("Location"));
+        map.moveCamera(CameraUpdateFactory.newLatLng(location));
+    }
+    private class GetLocation extends AsyncTask<Void, Void, JSONObject>{
+        protected JSONObject doInBackground(Void... urls){
             try{
                 input = (EditText) findViewById(R.id.locationText);
                 String location = input.getText().toString();
-                URL url = new URL("GoogleGeoAPIURL..." + location + API_KEY);
+                String [] locs = location.split(" ");
+
+                String googleURL = "https://maps.googleapis.com/maps/api/geocode/json?address=";
+
+                for(int i = 0; i<locs.length-1; i++){
+                    googleURL += locs[i];
+                    googleURL += '+';
+                }
+                googleURL += locs[locs.length-1];
+                googleURL += "&key=";
+                googleURL += API_KEY;
+
+                URL url = new URL(googleURL);
+
                 HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
                 try {
                     BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
@@ -52,8 +87,11 @@ public class MainActivity extends AppCompatActivity {
 
                     }
                     bufferedReader.close();
+                    String myString = stringBuilder.toString();
 
-                    return stringBuilder.toString();
+                    JSONObject json = new JSONObject(myString);
+
+                    return json;
                 } finally {
                     urlConnection.disconnect();
                 }
@@ -62,13 +100,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        protected void onPostExecute(String result){
+        protected void onPostExecute(JSONObject json){
 
             try {
-                JSONParser jsonParser = new JSONParser();
-                JSONObject jsonObject = (JSONObject) jsonParser.parse(result);
-
-                //Take the data from the JSON object and display it
+                JSONObject myJson = json.getJSONObject("geometry");
+                myJson = myJson.getJSONObject("location");
+                lat = myJson.getDouble("lat");
+                lng = myJson.getDouble("lng");
             }
             catch(Exception e){
             }
